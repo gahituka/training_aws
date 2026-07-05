@@ -1,0 +1,814 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: mySection-20260704
+
+Metadata:
+  "AWS::CloudFormation::Interface":
+    ParameterGroups:
+      - Label:
+          default: "Network Configuration"
+        Parameters:
+          - VPCCIDR
+          - PublicSubnetACIDR
+          - PublicSubnetCCIDR
+          - ProtectedSubnetACIDR
+          - ProtectedSubnetCCIDR
+          - PrivateSubnetACIDR
+          - PrivateSubnetCCIDR
+      - Label:
+          default: "Server Configuration"
+        Parameters:
+          - WebAppImageId
+          - SSHLocation
+          - KeyName
+      - Label:
+          default: "DB Configuration"
+        Parameters:
+          - RDSMasterUsername
+          - RDSMasterUserPassword
+          - WordPressUserDBPassword
+    ParameterLabels:
+      VPCCIDR:
+        default: "10.0.0.0/16"
+      PublicSubnetACIDR:
+        default: "10.0.0.0/24"
+      PublicSubnetCCIDR:
+        default: "10.0.1.0/24"
+      ProtectedSubnetACIDR:
+        default: "10.0.10.0/24"
+      ProtectedSubnetCCIDR:
+        default: "10.0.20.0/24"
+      PrivateSubnetACIDR:
+        default: "10.0.100.0/24"
+      PrivateSubnetCCIDR:
+        default: "10.0.200.0/24"
+      WebAppImageId:
+        default: "ami-xxxxxxxxxxxxxxxxx"
+      SSHLocation:
+        default: "0.0.0.0/0"
+      KeyName:
+        default: "xxxxx-dev-keypair"
+      RDSMasterUsername:
+        default: "xxxxx"
+      RDSMasterUserPassword:
+        default: "xxxxx"
+      WordPressUserDBPassword:
+        default: "xxxxx"
+
+# ------------------------------------------------------------#
+# Input Parameters
+# ------------------------------------------------------------#
+Parameters:
+  VPCCIDR:
+    Type: String
+    Default: "10.0.0.0/16"
+
+  PublicSubnetACIDR:
+    Type: String
+    Default: "10.0.0.0/24"
+
+  PublicSubnetCCIDR:
+    Type: String
+    Default: "10.0.1.0/24"
+
+  ProtectedSubnetACIDR:
+    Type: String
+    Default: "10.0.10.0/24"
+
+  ProtectedSubnetCCIDR:
+    Type: String
+    Default: "10.0.20.0/24"
+
+  PrivateSubnetACIDR:
+    Type: String
+    Default: "10.0.100.0/24"
+
+  PrivateSubnetCCIDR:
+    Type: String
+    Default: "10.0.200.0/24"
+
+  KeyName:
+    Description: The EC2 Key Pair to allow SSH access to the instances
+    Type: AWS::EC2::KeyPair::KeyName
+    ConstraintDescription: must be the name of an existing EC2 KeyPair.
+
+  WebAppImageId:
+    Description: WordPress Image Id
+    Type: String
+
+  SSHLocation:
+    Description: The IP address range that can be used to SSH to the EC2 instances
+    Type: String
+    MinLength: 9
+    MaxLength: 18
+    Default: 0.0.0.0/0
+    AllowedPattern: (\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})
+    ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/x.
+
+  RDSMasterUsername:
+    Type: String
+    Default: admin
+
+  RDSMasterUserPassword:
+    Type: String
+    NoEcho: true
+
+  WordPressUserDBPassword:
+    Description: DB user's password
+    Type: String
+    NoEcho: true
+    AllowedPattern: "[a-zA-Z0-9!-/:-@\\[-`{-~]{8,}$"
+
+Resources:
+  # ------------------------------------------------------------#
+  #  VPC
+  # ------------------------------------------------------------#
+  # VPC Create
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VPCCIDR
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      InstanceTenancy: default
+      Tags:
+        - Key: Name
+          Value: training-dev-vpc-web
+        - Key: Project
+          Value: Training
+        - Key: Environment
+          Value: Dev
+
+  # InternetGateway Create
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: training-dev-igw-wordpress
+        - Key: Project
+          Value: Training
+        - Key: Environment
+          Value: Dev
+
+  # IGW Attach
+  InternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  # ------------------------------------------------------------#
+  #  Subnet
+  # ------------------------------------------------------------#
+  # Public SubnetA Create
+  PublicSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: ap-northeast-1a
+      CidrBlock: !Ref PublicSubnetACIDR
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: training-dev-subnet-public-a
+        - Key: Project
+          Value: Training
+        - Key: Environment
+          Value: Dev
+
+  # Public SubnetC Create
+  PublicSubnetC:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: ap-northeast-1c
+      CidrBlock: !Ref PublicSubnetCCIDR
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: training-dev-subnet-public-c
+        - Key: Project
+          Value: Training
+        - Key: Environment
+          Value: Dev
+
+  # Protected SubnetA Create
+  ProtectedSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: ap-northeast-1a
+      CidrBlock: !Ref ProtectedSubnetACIDR
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: training-dev-subnet-protected-a
+        - Key: Project
+          Value: Training
+        - Key: Environment
+          Value: Dev
+
+  # Protected SubnetC Create
+  ProtectedSubnetC:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: ap-northeast-1c
+      CidrBlock: !Ref ProtectedSubnetCCIDR
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: training-dev-subnet-protected-c
+        - Key: Project
+          Value: Training
+        - Key: Environment
+          Value: Dev
+
+  # Private SubnetA Create
+  PrivateSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: ap-northeast-1a
+      CidrBlock: !Ref PrivateSubnetACIDR
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: training-dev-subnet-private-a
+        - Key: Project
+          Value: Training
+        - Key: Environment
+          Value: Dev
+
+  # Private SubnetC Create
+  PrivateSubnetC:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: ap-northeast-1c
+      CidrBlock: !Ref PrivateSubnetCCIDR
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: training-dev-subnet-private-c
+        - Key: Project
+          Value: Training
+        - Key: Environment
+          Value: Dev
+
+  # ------------------------------------------------------------#
+  #  NAT Gateway
+  # ------------------------------------------------------------#
+  # NATGatewayA Create
+  NATGatewayA:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NATGatewayAEIP.AllocationId
+      SubnetId: !Ref PublicSubnetA
+      Tags:
+        - Key: Name
+          Value: training-dev-natgw-a
+        - Key: Project
+          Value: Training
+        - Key: Environment
+          Value: Dev
+
+  # NATGateway For EIP Create
+  NATGatewayAEIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: training-dev-eip-natgw
+        - Key: Project
+          Value: Training
+        - Key: Environment
+          Value: Dev
+
+  # ------------------------------------------------------------#
+  #  RouteTable
+  # ------------------------------------------------------------#
+  # Public RouteTable Create
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: training-dev-rt-public
+        - Key: Project
+          Value: Training
+        - Key: Environment
+          Value: Dev
+
+  # Private Web/App RouteTable Create
+  ProtectedRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: training-dev-rt-protected
+        - Key: Project
+          Value: Training
+        - Key: Environment
+          Value: Dev
+
+  # Private DB RouteTable Create
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: training-dev-rt-private
+        - Key: Project
+          Value: Training
+        - Key: Environment
+          Value: Dev
+
+  # ------------------------------------------------------------#
+  # Routing
+  # ------------------------------------------------------------#
+  # PublicRoute Create
+  PublicRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  # ProtectedRoute Create
+  ProtectedRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref ProtectedRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NATGatewayA
+
+  # ------------------------------------------------------------#
+  # RouteTable Associate
+  # ------------------------------------------------------------#
+  # PublicRouteTable Associate SubnetA
+  PublicSubnetARouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnetA
+      RouteTableId: !Ref PublicRouteTable
+
+  # PublicRouteTable Associate SubnetC
+  PublicSubnetCRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnetC
+      RouteTableId: !Ref PublicRouteTable
+
+  # Private Web/App RouteTable Associate SubnetA
+  ProtectedSubnetARouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref ProtectedSubnetA
+      RouteTableId: !Ref ProtectedRouteTable
+
+  # Private Web/App RouteTable Associate SubnetC
+  ProtectedSubnetCRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref ProtectedSubnetC
+      RouteTableId: !Ref ProtectedRouteTable
+
+  # Private DB RouteTable Associate SubnetA
+  PrivateSubnetARouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnetA
+      RouteTableId: !Ref PrivateRouteTable
+
+  # Private DB RouteTable Associate SubnetC
+  PrivateSubnetCRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnetC
+      RouteTableId: !Ref PrivateRouteTable
+
+  # ------------------------------------------------------------#
+  # Security Group
+  # ------------------------------------------------------------#
+  # ALB 用セキュリティグループ
+  ALBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref VPC
+      GroupName: training-dev-sg-alb-public
+      GroupDescription: ALB Security Group for Training
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: training-dev-sg-alb-public
+        - Key: Project
+          Value: Training
+        - Key: Environment
+          Value: Dev
+
+  # 踏み台用 EC2 インスタンス用 SG
+  SecurityGroupForBastionInstance:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref VPC
+      GroupDescription: Bastion Security Group for Training
+      GroupName: training-dev-sg-bastion
+      SecurityGroupIngress:
+        - CidrIp: !Ref SSHLocation
+          IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+      Tags:
+        - Key: Name
+          Value: training-dev-sg-bastion
+        - Key: Project
+          Value: Training
+        - Key: Environment
+          Value: Dev
+
+  # WebApp EC2 インスタンス用 SG
+  SecurityGroupForWebAppInstance:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref VPC
+      GroupDescription: Web App Security Group for Training
+      GroupName: training-dev-sg-webapp
+      SecurityGroupIngress:
+        - SourceSecurityGroupId: !Ref SecurityGroupForBastionInstance
+          IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+        - SourceSecurityGroupId: !Ref ALBSecurityGroup
+          IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+      Tags:
+        - Key: Name
+          Value: training-dev-sg-webapp
+        - Key: Project
+          Value: Training
+        - Key: Environment
+          Value: Dev
+
+  # DB サーバー用セキュリティグループ
+  RDSSecurityGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      VpcId: !Ref VPC
+      GroupName: training-dev-sg-rds
+      GroupDescription: DB Security Group for Training
+      Tags:
+        - Key: Name
+          Value: training-dev-sg-rds
+        - Key: Project
+          Value: Training
+        - Key: Environment
+          Value: Dev
+      # Rule
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          SourceSecurityGroupId: !Ref SecurityGroupForWebAppInstance
+
+  # ------------------------------------------------------------#
+  #  IAM Role for EC2
+  # ------------------------------------------------------------#
+  EC2IAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: training-dev-iamrole-webapp
+      Path: /
+      Description: Web App IAM Role for Training
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Tags:
+        - Key: Project
+          Value: Training
+        - Key: Environment
+          Value: Dev
+
+  S3AccessIAMPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: training-dev-iampolicy-s3access
+      Description: "S3 Access IAM Policy for Training"
+      Path: /
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - s3:GetObject
+              - s3:PutObject
+              - s3:DeleteObject
+              - s3:PutObjectAcl
+            Resource: !Sub "arn:aws:s3:::${HostingS3Bucket}/*"
+          - Effect: Allow
+            Action:
+              - s3:GetBucketLocation
+            Resource: !Sub "arn:aws:s3:::${HostingS3Bucket}"
+      Roles:
+        - !Ref EC2IAMRole
+
+  EC2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+        - Ref: EC2IAMRole
+      InstanceProfileName: training-dev-iamrole-webapp
+
+  # ------------------------------------------------------------#
+  #  EC2
+  # ------------------------------------------------------------#
+  # 踏み台サーバー用 EIP
+  BastionInstanceEIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: training-dev-eip-bastion
+        - Key: Project
+          Value: Training
+        - Key: Environment
+          Value: Dev
+
+  # 踏み台サーバーに EIP をアタッチ
+  BastionInstanceEIPAssociation:
+    Type: AWS::EC2::EIPAssociation
+    Properties:
+      AllocationId: !GetAtt BastionInstanceEIP.AllocationId
+      InstanceId: !Ref BastionInstance
+
+  # 踏み台サーバー
+  BastionInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: 8
+      ImageId: ami-xxxxxxxxxxxxxxxxx
+      InstanceType: t3.micro
+      KeyName: !Ref KeyName
+      NetworkInterfaces:
+        - AssociatePublicIpAddress: true
+          DeviceIndex: 0
+          GroupSet:
+            - !Ref SecurityGroupForBastionInstance
+          SubnetId: !Ref PublicSubnetA
+      Tags:
+        - Key: Name
+          Value: training-dev-ec2-bastion
+        - Key: Project
+          Value: Training
+        - Key: Environment
+          Value: Dev
+
+  # Web/App サーバー01
+  WebAppInstance01:
+    Type: AWS::EC2::Instance
+    Properties:
+      Tags:
+        - Key: Name
+          Value: training-dev-ec2-webapp-protected-a
+        - Key: Project
+          Value: Training
+        - Key: Environment
+          Value: Dev
+      ImageId: !Ref WebAppImageId
+      InstanceType: t3.micro
+      KeyName: !Ref KeyName
+      IamInstanceProfile: !Ref EC2InstanceProfile
+      DisableApiTermination: false
+      EbsOptimized: false
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: 8
+      SecurityGroupIds:
+        - !Ref SecurityGroupForWebAppInstance
+      SubnetId: !Ref ProtectedSubnetA
+      UserData:
+        Fn::Base64: !Sub
+          - |
+            #!/bin/bash
+            cd /home/ec2-user
+            mysql -h ${RDSHostName} -u ${RDSMasterUsername} -p${RDSMasterUserPassword} -e "CREATE USER 'wordpress'@'%' IDENTIFIED BY '${WordPressUserDBPassword}';"
+            mysql -h ${RDSHostName} -u ${RDSMasterUsername} -p${RDSMasterUserPassword} -e "CREATE DATABASE \`wordpress_db\`;"
+            mysql -h ${RDSHostName} -u ${RDSMasterUsername} -p${RDSMasterUserPassword} wordpress_db -e "GRANT ALL PRIVILEGES ON \`wordpress_db\`.* TO 'wordpress'@'%';"
+            mysql -h ${RDSHostName} -u ${RDSMasterUsername} -p${RDSMasterUserPassword} -e "FLUSH PRIVILEGES;"
+            cp wordpress/wp-config-sample.php wordpress/wp-config.php
+            sed -i -e 's/database_name_here/wordpress_db/g' wordpress/wp-config.php
+            sed -i -e 's/username_here/wordpress/g' wordpress/wp-config.php
+            sed -i -e 's/password_here/${WordPressUserDBPassword}/g' wordpress/wp-config.php
+            sed -i -e 's/localhost/${RDSHostName}/g' wordpress/wp-config.php
+            cp -r wordpress/* /var/www/html/
+            chown -R apache:apache /var/www/html/
+            systemctl restart httpd php-fpm
+            /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource WebAppInstance01 --region ${AWS::Region}
+          - RDSMasterUsername: !Ref RDSMasterUsername
+            RDSMasterUserPassword: !Ref RDSMasterUserPassword
+            RDSHostName: !GetAtt DBInstance.Endpoint.Address
+            WordPressUserDBPassword: !Ref WordPressUserDBPassword
+
+  # Web/App サーバー 02
+  WebAppInstance02:
+    Type: AWS::EC2::Instance
+    Properties:
+      Tags:
+        - Key: Name
+          Value: training-dev-ec2-webapp-protected-c
+        - Key: Project
+          Value: Training
+        - Key: Environment
+          Value: Dev
+      ImageId: !Ref WebAppImageId
+      InstanceType: t3.micro
+      KeyName: !Ref KeyName
+      IamInstanceProfile: !Ref EC2InstanceProfile
+      DisableApiTermination: false
+      EbsOptimized: false
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: 8
+      SecurityGroupIds:
+        - !Ref SecurityGroupForWebAppInstance
+      SubnetId: !Ref ProtectedSubnetC
+      UserData:
+        Fn::Base64: !Sub
+          - |
+            #!/bin/bash
+            cd /home/ec2-user
+            cp wordpress/wp-config-sample.php wordpress/wp-config.php
+            sed -i -e 's/database_name_here/wordpress-db/g' wordpress/wp-config.php
+            sed -i -e 's/username_here/wordpress/g' wordpress/wp-config.php
+            sed -i -e 's/password_here/${WordPressUserDBPassword}/g' wordpress/wp-config.php
+            sed -i -e 's/localhost/${RDSHostName}/g' wordpress/wp-config.php
+            cp -f wordpress/wp-config.php /var/www/html/
+            chown -R apache:apache /var/www/html/
+            systemctl restart httpd
+          - RDSHostName: !GetAtt DBInstance.Endpoint.Address
+            WordPressUserDBPassword: !Ref WordPressUserDBPassword
+  # ------------------------------------------------------------#
+  #  Target Group
+  # ------------------------------------------------------------#
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      VpcId: !Ref VPC
+      Name: training-dev-tg-public
+      Protocol: HTTP
+      Port: 80
+      HealthCheckProtocol: HTTP
+      HealthCheckPath: /
+      HealthCheckPort: traffic-port
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 2
+      HealthCheckTimeoutSeconds: 5
+      HealthCheckIntervalSeconds: 10
+      Matcher:
+        HttpCode: 200
+      Tags:
+        - Key: Name
+          Value: training-dev-tg-public
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: 300
+        - Key: stickiness.enabled
+          Value: false
+        - Key: stickiness.type
+          Value: lb_cookie
+        - Key: stickiness.lb_cookie.duration_seconds
+          Value: 86400
+      Targets:
+        - Id: !Ref WebAppInstance01
+          Port: 80
+        - Id: !Ref WebAppInstance02
+          Port: 80
+
+  # ------------------------------------------------------------#
+  #  Internet ALB
+  # ------------------------------------------------------------#
+  InternetALB:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: training-dev-alb-public
+      Tags:
+        - Key: Name
+          Value: training-dev-alb-public
+        - Key: Project
+          Value: Training
+        - Key: Environment
+          Value: Dev
+      Scheme: internet-facing
+      LoadBalancerAttributes:
+        - Key: deletion_protection.enabled
+          Value: false
+        - Key: idle_timeout.timeout_seconds
+          Value: 60
+      SecurityGroups:
+        - !Ref ALBSecurityGroup
+      Subnets:
+        - !Ref PublicSubnetA
+        - !Ref PublicSubnetC
+
+  # リスナー
+  ALBListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - TargetGroupArn: !Ref TargetGroup
+          Type: forward
+      LoadBalancerArn: !Ref InternetALB
+      Port: 80
+      Protocol: HTTP
+
+  # ------------------------------------------------------------#
+  #  DB サーバー (MySQL)
+  # ------------------------------------------------------------#
+  # DB サーバー
+  DBInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBInstanceIdentifier: training-dev-rds
+      Engine: MySQL
+      EngineVersion: 8.0.46
+      DBInstanceClass: db.t3.micro
+      AllocatedStorage: 20
+      StorageType: gp2
+      MasterUsername: !Ref RDSMasterUsername
+      MasterUserPassword: !Ref RDSMasterUserPassword
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      PubliclyAccessible: false
+      MultiAZ: true
+      PreferredBackupWindow: 18:00-18:30
+      PreferredMaintenanceWindow: sat:19:00-sat:19:30
+      AutoMinorVersionUpgrade: false
+      DBParameterGroupName: !Ref DBParameterGroup
+      VPCSecurityGroups:
+        - !Ref RDSSecurityGroup
+      CopyTagsToSnapshot: true
+      BackupRetentionPeriod: 7
+      Tags:
+        - Key: Name
+          Value: training-dev-rds
+        - Key: Project
+          Value: Training
+        - Key: Environment
+          Value: Dev
+    DeletionPolicy: Delete
+
+  # ------------------------------------------------------------#
+  #  DBParameterGroup
+  # ------------------------------------------------------------#
+  DBParameterGroup:
+    Type: AWS::RDS::DBParameterGroup
+    Properties:
+      Family: !Sub mysql8.0
+      Description: DB Parameter Group for Training
+
+  # ------------------------------------------------------------#
+  #  DBSubnetGroup
+  # ------------------------------------------------------------#
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupName: training-dev-subnetgroup
+      DBSubnetGroupDescription: DB Subnet Group for Training
+      SubnetIds:
+        - !Ref PrivateSubnetA
+        - !Ref PrivateSubnetC
+
+  # ------------------------------------------------------------#
+  #  S3
+  # ------------------------------------------------------------#
+  # 画像配信用 S3 バケットの作成
+  HostingS3Bucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+      BucketName: !Sub training-dev-s3-${AWS::AccountId}
+      Tags:
+        - Key: Project
+          Value: Training
+        - Key: Environment
+          Value: Dev
