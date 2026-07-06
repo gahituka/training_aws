@@ -1,0 +1,60 @@
+【アーキテクチャ概要】
+ポートフォリオとして、高可用性（マルチAZ、オートスケール）を備えたWebサイト基盤をAWS上に構築しました。
+ALBによりWebトラフィックを複数のWebサーバへ分散し、Web/App層とDB層を分離することで、セキュリティと可用性を向上させています。
+Webサイトからアップロードされる画像はS3バケットへ保存する設計としました。
+Web サーバへのSSH接続は、踏み台サーバ経由に限定し、外部公開はALBのHTTPのみとすることでセキュリティを確保しています。
+
+GitHubにアーキテクチャ図とCloudFormation テンプレートをアップロードしています。
+▼アーキテクチャ図
+https://github.com/gahituka/training_aws/blob/main/aws_%20architecture_20260705.png
+▼テンプレート
+https://github.com/gahituka/training_aws/blob/main/my_template_20260705.yml
+
+【作業工程】
+AWS マネジメントコンソールから全リソースを手作業で構築
+ネットワーク、EC2、RDS、ALB、IAM、S3 などすべてをコンソール操作で作成。
+
+IaC 化（Infrastructure as Code）
+作成したリソースをIaCジェネレーターでCloudFormationテンプレート化し、構成の再現性を確保。
+
+アーキテクチャ図の作成
+CloudFormationテンプレートを元にClaude AIを活用してdrawio形式のアーキテクチャ図を生成。
+
+【作成したリソース一覧】
+■ ネットワーク
+VPC
+サブネット
+Internet Gateway
+NAT Gateway
+ルートテーブル
+サブネット
+セキュリティグループ
+
+■ コンピュート
+EC2
+Auto Scaling Group（Multi-AZ）
+EIP
+AMI
+起動テンプレート
+
+■ ロードバランシング
+Application Load Balancer（ALB）
+Target Group
+
+■ データベース
+RDS MySQL
+DB パラメータグループ
+DB サブネットグループ
+
+■ ストレージ
+S3 バケット
+
+■ IAM
+IAM ポリシー
+IAM ロール
+
+■ モニタリング / ログ
+CloudWatch Logs
+cloudwatch-agentのインストール
+
+以上です。
